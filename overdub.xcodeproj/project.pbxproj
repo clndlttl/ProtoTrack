@@ -15,6 +15,7 @@
 		11A4855D2C9367B700718A41 /* overdubUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A4855C2C9367B700718A41 /* overdubUITests.swift */; };
 		11A4855F2C9367B700718A41 /* overdubUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A4855E2C9367B700718A41 /* overdubUITestsLaunchTests.swift */; };
 		11A4856C2C9A100700718A41 /* dsputils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A4856B2C9A100700718A41 /* dsputils.swift */; };
+		11A4856E2C9BD75600718A41 /* AudioPlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A4856D2C9BD75600718A41 /* AudioPlayerManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +47,7 @@
 		11A4855C2C9367B700718A41 /* overdubUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = overdubUITests.swift; sourceTree = "<group>"; };
 		11A4855E2C9367B700718A41 /* overdubUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = overdubUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		11A4856B2C9A100700718A41 /* dsputils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = dsputils.swift; sourceTree = "<group>"; };
+		11A4856D2C9BD75600718A41 /* AudioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +103,7 @@
 				11A485452C9367B700718A41 /* Assets.xcassets */,
 				11A485472C9367B700718A41 /* Preview Content */,
 				11A4856B2C9A100700718A41 /* dsputils.swift */,
+				11A4856D2C9BD75600718A41 /* AudioPlayerManager.swift */,
 			);
 			path = overdub;
 			sourceTree = "<group>";
@@ -261,6 +264,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				11A485442C9367B600718A41 /* ContentView.swift in Sources */,
+				11A4856E2C9BD75600718A41 /* AudioPlayerManager.swift in Sources */,
 				11A4856C2C9A100700718A41 /* dsputils.swift in Sources */,
 				11A485422C9367B600718A41 /* overdubApp.swift in Sources */,
 			);
@@ -440,6 +444,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_CFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.colinfox.overdub;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -470,6 +475,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_CFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.colinfox.overdub;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

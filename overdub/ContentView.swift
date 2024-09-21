@@ -20,175 +20,128 @@ func getDocumentsDirectory() -> URL {
     return paths[0]
 }
 
-class AudioPlayerManager: NSObject, AVAudioPlayerDelegate, ObservableObject {
-    var audioPlayer: AVAudioPlayer?
-    private var prepared: Bool = false
-    
-    // Observable property to track if audio finished playing
-    @Published var audioFinished = false
-    
-    func prepareAudio(filename: String) {
-        let audioFilename = getDocumentsDirectory().appendingPathComponent(filename)
-                
-        do {
-            audioPlayer = try AVAudioPlayer(contentsOf: audioFilename)
-            audioPlayer?.delegate = self  // Set the delegate
-            audioPlayer?.prepareToPlay()  // Start playing the audio
-            self.prepared = true
-            print("Audio prepared.")
-        } catch {
-            print("Failed to prepare audio: \(error.localizedDescription)")
-        }
-    }
-    
-    func markAsUnprepared() {
-        self.prepared = false
-    }
-    
-    func playAudio() {
-        if !self.prepared {
-            prepareAudio(filename: "base.m4a")
-        }
-        audioPlayer?.play()
-    }
-    
-    func pauseAudio() {
-        audioPlayer?.pause()
-    }
-    
-    // Delegate method to detect when the audio finishes playing
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        if flag {
-            print("Audio finished playing successfully.")
-            DispatchQueue.main.async {
-                self.audioFinished = true  // Notify the view of the event
-            }
-        } else {
-            print("Audio finished playing, but there was an issue.")
-        }
-    }
-}
 
 struct ContentView: View {
 
     @State private var state: AppState = .STOP
     @State private var trackExists: Bool = false
     
+    @State private var playhead: TimeInterval = 0.0
+    
     @State private var audioRecorder: AVAudioRecorder?
     @StateObject var audioPlayerManager = AudioPlayerManager()
     
-    @State private var userNotification: String = ""
+    @State private var userNotification: String = "Please record a base track."
 
     var body: some View {
-        VStack
-        {
-            // RESET BUTTON
-            Button {
-                switch self.state {
-                case .RECORD:
-                    stopRecording()
-                case .PLAY:
-                    pause()
-                case .STOP:
-                    break
-                }
-                        
-                reset()
-            } label:
+        GeometryReader { geometry in
+            VStack
             {
-                Text("Reset")
-                    .font(.title)
-                    .padding()
-                    .background(Color.gray)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-            }
-            
-            Spacer()
-            
-            HStack {
-                // PLAY FROM TOP BUTTON
+                // RESET BUTTON
                 Button {
-                    switch self.state {
-                    case .STOP:
-                        initPlayback()
-                    case .PLAY:
-                        pause()
-                        initPlayback()
-                    case .RECORD:
-                        break
-                    }
-                } label: {
-                    Image(systemName: "backward.end.circle")
-                        .resizable()
-                        .frame(width:100,height: 100)
-                        .foregroundColor(Color.blue)
-                }
-
-                // PLAY / PAUSE BUTTON
-                Button {
-                    switch self.state {
-                    case .STOP:
-                        unpause()
-                    case .PLAY:
-                        pause()
-                    case .RECORD:
-                        break
-                    }
-                } label: {
-                    Image(systemName: self.state == .STOP ? "play.circle" : "pause.circle")
-                        .resizable()
-                        .frame(width:100,height: 100)
-                        .foregroundColor(self.state == .STOP ? Color.green : Color.blue)
-                }.padding(.horizontal,25)
-                
-                // RECORD BUTTON
-                Button {
-                    switch self.state {
-                    case .STOP:
-                        requestMicrophoneAccessAndStartRecording()
-                    case .PLAY:
-                        break
-                    case .RECORD:
-                        stopRecording()
-                    }
-                } label: {
-                    Image(systemName: self.state == .RECORD ? "square.fill" : "record.circle").resizable().frame(width: 100, height: 100).foregroundColor(.red)
+                    reset()
+                } label:
+                {
+                    Text("Reset")
+                        .font(.title)
+                        .padding()
+                        .background(Color.gray)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
                 }
                 
-            }
-            // NOTIFICATION
-            Text(userNotification).padding()
-            
-            Spacer()
-            
-            // SAVE BUTTON
-            Button {
-                if self.state == .STOP {
-                    save()
-                }
-            } label:
-            {
-                Text("Save")
-                    .font(.title)
+                Spacer()
+                
+                Text(String(format: "%.2f", self.playhead))
+                    .frame(width: geometry.size.width, height: 20, alignment: .center)
                     .padding()
-                    .background(Color.gray)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
+                
+                HStack {
+                    // PLAY FROM TOP BUTTON
+                    Button {
+                        if self.state == .RECORD {
+                            stopRecording()
+                        }
+                        rewind()
+                    } label: {
+                        Image(systemName: "backward.end.circle")
+                            .resizable()
+                            .frame(width:100,height: 100)
+                            .foregroundColor(Color.blue)
+                    }
+                    
+                    // PLAY / PAUSE BUTTON
+                    Button {
+                        switch self.state {
+                        case .STOP:
+                            play()
+                        case .PLAY:
+                            pause()
+                        case .RECORD:
+                            stopRecording()
+                        }
+                    } label: {
+                        Image(systemName: self.state == .STOP ? "play.circle" : "pause.circle")
+                            .resizable()
+                            .frame(width:100,height: 100)
+                            .foregroundColor(self.state == .STOP ? Color.green : Color.yellow)
+                    }.padding(.horizontal,25)
+                    
+                    // RECORD BUTTON
+                    Button {
+                        switch self.state {
+                        case .STOP:
+                            requestMicrophoneAccessAndStartRecording()
+                        case .PLAY:
+                            self.userNotification = "Please pause before recording."
+                        case .RECORD:
+                            stopRecording()
+                        }
+                    } label: {
+                        Image(systemName: self.state == .RECORD ? "square.fill" : "record.circle").resizable().frame(width: 100, height: 100).foregroundColor(.red)
+                    }
+                    
+                }
+                // NOTIFICATION
+                Text(userNotification)
+                    .frame(width: geometry.size.width, height: 20, alignment: .center)
+                    .padding()
+                
+                Spacer()
+                
+                // SAVE BUTTON
+                Button {
+                    if self.state == .STOP {
+                        save()
+                    } else {
+                        self.userNotification = "Stop audio before saving."
+                    }
+                } label:
+                {
+                    Text("Save")
+                        .font(.title)
+                        .padding()
+                        .background(Color.gray)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+                
             }
-
-        }
-        .onAppear {
-            configureAudioSession()
-        }
-        .onReceive(audioPlayerManager.$audioFinished) { finished in
-            if finished {
-                print("Playback finished")
-                if self.state != .RECORD {
-                    self.state = .STOP
+            .onAppear {
+                configureAudioSession()
+            }
+            .onReceive(audioPlayerManager.$audioFinished) { finished in
+                if finished {
+                    print("Playback finished")
+                    
+                    if self.state != .RECORD {
+                        self.state = .STOP
+                        self.playhead = 0.0
+                    }
                 }
             }
-        }
+            .frame(width: geometry.size.width, height: geometry.size.height)  // Full-screen alignment
+        }.edgesIgnoringSafeArea(.horizontal)  // Ensure the view takes up the entire screen area
     }
     
     // Configure the audio session
@@ -232,10 +185,6 @@ struct ContentView: View {
         let audioFilename = getDocumentsDirectory().appendingPathComponent(
             self.trackExists ? "dub.m4a" : "base.m4a")
         
-        if self.trackExists {
-            audioPlayerManager.prepareAudio(filename: "base.m4a")
-        }
-
         do {
             audioRecorder = try AVAudioRecorder(url: audioFilename, settings: recordingSettings)
             audioRecorder?.record()
@@ -243,7 +192,8 @@ struct ContentView: View {
                 self.audioPlayerManager.playAudio()
             }
             // May need to deduce the delay between new recording and playback
-            print("Recording started.")
+            self.userNotification = "Recording..."
+            print("Recording...")
             self.state = .RECORD
         } catch {
             print("Failed to start recording: \(error.localizedDescription)")
@@ -256,11 +206,17 @@ struct ContentView: View {
         audioRecorder?.stop()
         audioRecorder = nil
         
+        self.userNotification = ""
+        let previousPlayhead: TimeInterval = self.playhead
+        
+        self.state = .STOP
         if self.trackExists {
-            pause()
+            self.playhead = audioPlayerManager.pauseAudio()
+            print("Set playhead to \(self.playhead)")
         } else {
+            // this premiere recording was saved as base.m4a
             self.trackExists = true
-            self.state = .STOP
+            audioPlayerManager.prepareAudio(filename: "base.m4a")
             return
         }
         
@@ -270,36 +226,45 @@ struct ContentView: View {
         let base = getDocumentsDirectory().appendingPathComponent("base.m4a")
         let dub = getDocumentsDirectory().appendingPathComponent("dub.m4a")
         
-        if let buffer1 = readAudioFile(url: base), let buffer2 = readAudioFile(url: dub) {
-            if let combinedBuffer = addAudioBuffers(buffer1: buffer1, buffer2: buffer2) {
-                writeAudioFile(buffer: combinedBuffer, url: base)
-                audioPlayerManager.markAsUnprepared()
-                print("Audio files combined successfully!")
-            } else {
-                print("Error combining audio buffers.")
-            }
+        if let combinedBuffer = addAudioBuffers(baseUrl: base, dubUrl: dub, offset: previousPlayhead) {
+            writeAudioFile(buffer: combinedBuffer, url: base)
+            print("Audio files combined successfully!")
+            
+            // note currentTime, prepare Audio, reset currentTime
+            audioPlayerManager.prepareAudio(filename: "base.m4a")
+            audioPlayerManager.setCurrentTime(time: self.playhead)
+             
+        } else {
+            print("Error combining audio buffers.")
         }
     }
-    
-    func initPlayback() {
-        print("init playback")
+
+    func rewind() {
+        print("rewind")
         
         if !self.trackExists {
-            self.userNotification = "Please record a base track first"
+            self.userNotification = "Please record a base track."
             print("Track does not exist")
             return
         }
         
-        self.audioPlayerManager.prepareAudio(filename: "base.m4a")
-        self.audioPlayerManager.playAudio()
-        self.state = .PLAY
+        if self.state == .PLAY {
+            _ = self.audioPlayerManager.pauseAudio()
+        }
+        
+        self.audioPlayerManager.setCurrentTime(time: 0.0)
+        self.playhead = 0.0
+
+        if self.state == .PLAY {
+            self.audioPlayerManager.playAudio()
+        }
     }
     
-    func unpause() {
+    func play() {
         print("start playback")
         
         if !self.trackExists {
-            self.userNotification = "Please record a base track first"
+            self.userNotification = "Please record a base track."
             print("Track does not exist")
             return
         }
@@ -309,28 +274,37 @@ struct ContentView: View {
     }
     
     func pause() {
-        print("stop playback")
-        audioPlayerManager.pauseAudio()
+        print("pause playback, update playhead")
+        self.playhead = audioPlayerManager.pauseAudio()
         self.state = .STOP
     }
     
     func reset() {
         print("reset")
-        self.state = .STOP
-        if !self.trackExists {
-            self.userNotification = "Nothing to reset"
-            print("Track does not exist")
-            return
+        
+        if self.state == .RECORD {
+            audioRecorder?.stop()
+            audioRecorder = nil
         }
         
-        let audioFilename = getDocumentsDirectory().appendingPathComponent("base.m4a")
-        do {
-            try FileManager.default.removeItem(at: audioFilename)
-            self.userNotification = "Reset complete"
-            print("base.m4a deleted")
-            self.trackExists = false
-        } catch {
-            print("Exception in reset()")
+        self.state = .STOP
+        self.playhead = 0.0
+        
+        if self.trackExists {
+            audioPlayerManager.stopAudio()
+        
+            let audioFilename = getDocumentsDirectory().appendingPathComponent("base.m4a")
+            print(audioFilename)
+            do {
+                try FileManager.default.removeItem(at: audioFilename)
+                self.userNotification = "Reset complete."
+                print("base.m4a deleted")
+                self.trackExists = false
+            } catch {
+                print("Exception in reset()")
+            }
+        } else {
+            self.userNotification = "Please record a base track."
         }
     }
     
@@ -338,7 +312,7 @@ struct ContentView: View {
         print("save")
         
         if !self.trackExists {
-            self.userNotification = "Please record a base track first"
+            self.userNotification = "Please record a base track."
             print("Track does not exist")
             return
         }
