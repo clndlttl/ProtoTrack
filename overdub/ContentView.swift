@@ -12,6 +12,7 @@ enum AppState {
     case STOP
     case PLAY
     case RECORD
+    case CALIBRATE
 }
 
 // Helper function to get the path to the app's documents directory
@@ -30,27 +31,55 @@ struct ContentView: View {
     
     @State private var audioRecorder: AVAudioRecorder?
     @StateObject var audioPlayerManager = AudioPlayerManager()
-    
+    @StateObject var calibrator = Calibrator()
+
     @State private var userNotification: String = "Please record a base track."
+    @State private var showCalibrationAlert: Bool = false
+    
+    @State private var shouldRedrawWaveform: Bool = false
 
     var body: some View {
         GeometryReader { geometry in
             VStack
             {
-                // RESET BUTTON
-                Button {
-                    reset()
-                } label:
-                {
-                    Text("Reset")
-                        .font(.title)
-                        .padding()
-                        .background(Color.gray)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
+                Canvas { context, size in
+                    
+                    let rect = CGRect(origin: .zero, size: size)
+                    
+                    context.fill(
+                        Path(rect),
+                        with: .color(.white)
+                    )
+                    
+                    let minX = rect.minX
+                    let midY = rect.midY
+                    let startPoint = CGPoint(x: minX, y: midY)
+                    let endPoint = CGPoint(x: rect.maxX, y: midY)
+                    
+                    var linePath = Path()
+                    linePath.move(to: startPoint)
+                    linePath.addLine(to: endPoint)
+                    
+                    context.stroke(linePath, with: .color(.gray))
+                    
+                    // Draw base.m4a
+                    if shouldRedrawWaveform && self.trackExists {
+                        if let envelope = audioPlayerManager.getEnvelope(bins: Int(rect.maxX - minX)) {
+                            for (idx, point) in envelope.enumerated() {
+                                linePath = Path()
+                                linePath.move(to: CGPoint(x: minX+CGFloat(idx), y: midY*(1.0+CGFloat(point))))
+                                linePath.addLine(to: CGPoint(x: minX+CGFloat(idx), y: midY*(1.0-CGFloat(point))))
+                                
+                                context.stroke(linePath, with: .color(.black))
+                            }
+                        }
+                    }
+                    
+                    
                 }
+                .frame(width: geometry.size.width, height: 200)
                 
-                Spacer()
+                //Spacer()
                 
                 Text(String(format: "%.2f", self.playhead))
                     .frame(width: geometry.size.width, height: 20, alignment: .center)
@@ -64,9 +93,9 @@ struct ContentView: View {
                         }
                         rewind()
                     } label: {
-                        Image(systemName: "backward.end.circle")
+                        Image(systemName: "gobackward")
                             .resizable()
-                            .frame(width:100,height: 100)
+                            .frame(width:60,height: 60)
                             .foregroundColor(Color.blue)
                     }
                     
@@ -79,13 +108,15 @@ struct ContentView: View {
                             pause()
                         case .RECORD:
                             stopRecording()
+                        case .CALIBRATE:
+                            break
                         }
                     } label: {
-                        Image(systemName: self.state == .STOP ? "play.circle" : "pause.circle")
+                        Image(systemName: self.state == .STOP ? "play" : "pause")
                             .resizable()
-                            .frame(width:100,height: 100)
-                            .foregroundColor(self.state == .STOP ? Color.green : Color.yellow)
-                    }.padding(.horizontal,25)
+                            .frame(width:60,height: 60)
+                            .foregroundColor(Color.green)
+                    }.padding(.horizontal,50)
                     
                     // RECORD BUTTON
                     Button {
@@ -96,34 +127,91 @@ struct ContentView: View {
                             self.userNotification = "Please pause before recording."
                         case .RECORD:
                             stopRecording()
+                        case .CALIBRATE:
+                            break
                         }
                     } label: {
-                        Image(systemName: self.state == .RECORD ? "square.fill" : "record.circle").resizable().frame(width: 100, height: 100).foregroundColor(.red)
+                        Image(systemName: self.state == .RECORD ? "stop" : "record.circle").resizable().frame(width: 60, height: 60).foregroundColor(.red)
                     }
                     
                 }
+                
                 // NOTIFICATION
                 Text(userNotification)
                     .frame(width: geometry.size.width, height: 20, alignment: .center)
                     .padding()
                 
-                Spacer()
+                //Spacer()
                 
-                // SAVE BUTTON
-                Button {
-                    if self.state == .STOP {
-                        save()
-                    } else {
-                        self.userNotification = "Stop audio before saving."
+                Canvas { context, size in
+                    
+                    let rect = CGRect(origin: .zero, size: size)
+                    
+                    context.fill(
+                        Path(rect),
+                        with: .color(.white)
+                    )
+                }
+                .frame(width: geometry.size.width, height: 200)
+
+                HStack {
+                    // CALIBRATE BUTTON
+                    Button {
+                        if self.state == .STOP {
+                            showCalibrationAlert = true
+                        }
+                    } label:
+                    {
+                        Image(systemName: "stethoscope")
+                            .resizable()
+                            .frame(width:60,height: 50)
+                            .foregroundColor(Color.gray)
                     }
-                } label:
-                {
-                    Text("Save")
-                        .font(.title)
-                        .padding()
-                        .background(Color.gray)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
+                    .padding()
+                    .alert(isPresented: $showCalibrationAlert, content: {
+                        Alert(
+                            title: Text("Calibration"),
+                            message: Text("Before calibrating the echo canceller, seek a quiet environment and remain silent until the process completes."),
+                            primaryButton: .default(Text("Begin"), action: {
+                                // OK action
+                                print("OK pressed")
+                                calibrate()
+                            }),
+                            secondaryButton: .cancel(Text("Cancel"), action: {
+                                // Cancel action
+                                print("Cancel pressed")
+                            })
+                        )
+                    })
+                    
+                    
+                    // SAVE BUTTON
+                    Button {
+                        if self.state == .STOP {
+                            save()
+                        } else {
+                            self.userNotification = "Stop audio before saving."
+                        }
+                    } label:
+                    {
+                        Image(systemName: "square.and.arrow.up").resizable().frame(width: 38, height: 50).foregroundColor(Color.gray)
+                    }.padding(.horizontal,50)
+                    
+                    
+                    // RESET BUTTON
+                    Button {
+                        if self.state == .RECORD {
+                            abortRecording()
+                        } else if self.state != .CALIBRATE {
+                            reset()
+                        }
+                    } label:
+                    {
+                        Image(systemName: "trash")
+                            .resizable()
+                            .frame(width:50,height:50)
+                            .foregroundColor(Color.gray)
+                    }.padding()
                 }
                 
             }
@@ -132,12 +220,18 @@ struct ContentView: View {
             }
             .onReceive(audioPlayerManager.$audioFinished) { finished in
                 if finished {
-                    print("Playback finished")
+                    print("onReceive: Playback finished")
                     
                     if self.state != .RECORD {
                         self.state = .STOP
                         self.playhead = 0.0
                     }
+                }
+            }
+            .onReceive(calibrator.$calibrationFinished) { finished in
+                if finished {
+                    print("onReceive: Calibration complete")
+                    self.state = .STOP
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)  // Full-screen alignment
@@ -155,6 +249,12 @@ struct ContentView: View {
         } catch {
             print("Failed to configure audio session: \(error.localizedDescription)")
         }
+    }
+    
+    func calibrate() {
+        print("calibrate")
+        self.state = .CALIBRATE
+        calibrator.playWavFile()
     }
     
     // Request microphone access with completion handler
@@ -201,10 +301,29 @@ struct ContentView: View {
         }
     }
     
+    func abortRecording() {
+        print("abortRecording")
+        audioRecorder?.stop()
+        audioRecorder = nil
+        
+        self.userNotification = "Recording ignored"
+        
+        self.state = .STOP
+        if self.trackExists {
+            _ = audioPlayerManager.pauseAudio()
+            audioPlayerManager.setCurrentTime(time: self.playhead)
+        } else {
+            // this premiere recording was saved as base.m4a
+            reset()
+            return
+        }
+    }
+    
     func stopRecording() {
         print("stop recording")
         audioRecorder?.stop()
         audioRecorder = nil
+        
         
         self.userNotification = ""
         let previousPlayhead: TimeInterval = self.playhead
@@ -217,6 +336,8 @@ struct ContentView: View {
             // this premiere recording was saved as base.m4a
             self.trackExists = true
             audioPlayerManager.prepareAudio(filename: "base.m4a")
+            shouldRedrawWaveform = false
+            shouldRedrawWaveform = true
             return
         }
         
@@ -230,9 +351,12 @@ struct ContentView: View {
             writeAudioFile(buffer: combinedBuffer, url: base)
             print("Audio files combined successfully!")
             
-            // note currentTime, prepare Audio, reset currentTime
+            // prepare Audio, set currentTime
             audioPlayerManager.prepareAudio(filename: "base.m4a")
             audioPlayerManager.setCurrentTime(time: self.playhead)
+
+            shouldRedrawWaveform = false
+            shouldRedrawWaveform = true
              
         } else {
             print("Error combining audio buffers.")
@@ -294,7 +418,6 @@ struct ContentView: View {
             audioPlayerManager.stopAudio()
         
             let audioFilename = getDocumentsDirectory().appendingPathComponent("base.m4a")
-            print(audioFilename)
             do {
                 try FileManager.default.removeItem(at: audioFilename)
                 self.userNotification = "Reset complete."

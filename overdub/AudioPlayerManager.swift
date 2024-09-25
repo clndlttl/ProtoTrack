@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import Accelerate
 
 class AudioPlayerManager: NSObject, AVAudioPlayerDelegate, ObservableObject {
     var audioPlayer: AVAudioPlayer?
@@ -54,5 +55,32 @@ class AudioPlayerManager: NSObject, AVAudioPlayerDelegate, ObservableObject {
         } else {
             print("Audio finished playing, but there was an issue.")
         }
+    }
+    
+    func getEnvelope(bins: Int) -> [Float]? {
+        
+        let base = getDocumentsDirectory().appendingPathComponent("base.m4a")
+        guard let buffer = readAudioFile(url: base) else {
+            print("No envelope to get.")
+            return nil
+        }
+        
+        guard let floatData = buffer.floatChannelData else {
+            return nil
+        }
+        
+        let framesPerBin = Int(buffer.frameLength) / bins
+        
+        var envelope = Array(repeating: Float(0), count: bins)
+        
+        for i in 0..<bins {
+            vDSP_svesq(&floatData[0][i*framesPerBin], 1, &envelope[i], vDSP_Length(framesPerBin))
+        }
+        
+        // normalize
+        var maxval: Float = 1.0 / (envelope.max() ?? 1.0)
+        vDSP_vsmul(envelope, 1, &maxval, &envelope, 1, vDSP_Length(bins))
+        
+        return envelope
     }
 }
