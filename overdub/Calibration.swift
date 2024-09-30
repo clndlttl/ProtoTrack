@@ -34,9 +34,7 @@ class Calibrator: NSObject, AVAudioPlayerDelegate, ObservableObject {
         if flag {
             print("Calibration complete.")
             self.audioPlayer = nil
-            DispatchQueue.main.async {
-                self.calibrationFinished = true  // Notify the view of the event
-            }
+            self.calibrationFinished = true  // Notify the view of the event
         } else {
             print("Calibration complete, but there was an issue.")
         }

@@ -21,6 +21,25 @@ func getDocumentsDirectory() -> URL {
     return paths[0]
 }
 
+struct WaveformView: View {
+    @Binding var envelope: [Float]?
+
+    var body: some View {
+        Canvas { context, size in
+            print("Redrawing waveform!!!")
+            let midY = size.height / 2.0
+            if let env = self.envelope {
+                for (idx, point) in env.enumerated() {
+                    var linePath = Path()
+                    linePath.move(to: CGPoint(x: CGFloat(idx), y: midY*(1.0+CGFloat(point))))
+                    linePath.addLine(to: CGPoint(x: CGFloat(idx), y: midY*(1.0-CGFloat(point))))
+                    context.stroke(linePath, with: .color(.teal))
+                }
+            }
+        }
+    }
+}
+
 
 struct ContentView: View {
 
@@ -28,76 +47,73 @@ struct ContentView: View {
     @State private var trackExists: Bool = false
     
     @State private var playhead: TimeInterval = 0.0
+    @State private var previousPlayhead: TimeInterval = 0.0
+    @State private var duration: TimeInterval = 0.0
     
     @State private var audioRecorder: AVAudioRecorder?
-    @StateObject var audioPlayerManager = AudioPlayerManager()
-    @StateObject var calibrator = Calibrator()
+    @StateObject private var audioPlayerManager = AudioPlayerManager()
+    @StateObject private var calibrator = Calibrator()
 
     @State private var userNotification: String = "Please record a base track."
     @State private var showCalibrationAlert: Bool = false
     
-    @State private var shouldRedrawWaveform: Bool = false
-
+    @State private var envelope: [Float]?
+    
+    @State private var canvasWidth: Double = 0.0
+    
     var body: some View {
-        GeometryReader { geometry in
+        GeometryReader { outerGeometry in
             VStack
             {
-                Canvas { context, size in
+                ZStack {
+                    Canvas { context, size in
+                        print("Redrawing rect")
+                        let rect = CGRect(origin: .zero, size: size)
+                        context.fill(Path(rect), with: .color(.black))
+                    }
                     
-                    let rect = CGRect(origin: .zero, size: size)
-                    
-                    context.fill(
-                        Path(rect),
-                        with: .color(.white)
-                    )
-                    
-                    let minX = rect.minX
-                    let midY = rect.midY
-                    let startPoint = CGPoint(x: minX, y: midY)
-                    let endPoint = CGPoint(x: rect.maxX, y: midY)
-                    
-                    var linePath = Path()
-                    linePath.move(to: startPoint)
-                    linePath.addLine(to: endPoint)
-                    
-                    context.stroke(linePath, with: .color(.gray))
-                    
-                    // Draw base.m4a
-                    if shouldRedrawWaveform && self.trackExists {
-                        if let envelope = audioPlayerManager.getEnvelope(bins: Int(rect.maxX - minX)) {
-                            for (idx, point) in envelope.enumerated() {
-                                linePath = Path()
-                                linePath.move(to: CGPoint(x: minX+CGFloat(idx), y: midY*(1.0+CGFloat(point))))
-                                linePath.addLine(to: CGPoint(x: minX+CGFloat(idx), y: midY*(1.0-CGFloat(point))))
-                                
-                                context.stroke(linePath, with: .color(.black))
-                            }
+                    Canvas { context, size in
+                        print("Redrawing playhead")
+                        // Draw playhead
+                        if self.trackExists && self.duration > 0 {
+                            let percentage: Double = min(self.playhead / self.duration, 1.0)
+                            let playheadX = percentage * Double(size.width)
+                            let shaded = CGRect(origin: .zero, size: CGSize(width: Int(playheadX), height: Int(size.height)) )
+                            context.fill(Path(shaded), with: .color(.purple))
                         }
                     }
                     
-                    
+                    Canvas { context, size in
+                        print("Redrawing axis")
+                        var linePath = Path()
+                        linePath.move(to: CGPoint(x: 0, y: size.height/2))
+                        linePath.addLine(to: CGPoint(x: size.width, y: size.height/2))
+                        context.stroke(linePath, with: .color(.gray))
+                    }
+                        
+                    WaveformView(envelope: self.$envelope)
                 }
-                .frame(width: geometry.size.width, height: 200)
-                
-                //Spacer()
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                    .onEnded { value in
+                        let translation = value.translation
+                                    
+                        // Detect a swipe based on horizontal translation
+                        if translation.width < -50 {
+                            self.playhead = 0.0
+                        } else {
+                            self.playhead = (value.location.x / outerGeometry.size.width) * self.duration
+                        }
+                        audioPlayerManager.setCurrentTime(time: self.playhead)
+                    }
+                )
+                .frame(width: outerGeometry.size.width, height: 200)
                 
                 Text(String(format: "%.2f", self.playhead))
-                    .frame(width: geometry.size.width, height: 20, alignment: .center)
+                    .frame(width: outerGeometry.size.width, height: 20, alignment: .center)
                     .padding()
                 
                 HStack {
-                    // PLAY FROM TOP BUTTON
-                    Button {
-                        if self.state == .RECORD {
-                            stopRecording()
-                        }
-                        rewind()
-                    } label: {
-                        Image(systemName: "gobackward")
-                            .resizable()
-                            .frame(width:60,height: 60)
-                            .foregroundColor(Color.blue)
-                    }
                     
                     // PLAY / PAUSE BUTTON
                     Button {
@@ -116,7 +132,7 @@ struct ContentView: View {
                             .resizable()
                             .frame(width:60,height: 60)
                             .foregroundColor(Color.green)
-                    }.padding(.horizontal,50)
+                    }.padding(.horizontal, 25)
                     
                     // RECORD BUTTON
                     Button {
@@ -132,13 +148,13 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: self.state == .RECORD ? "stop" : "record.circle").resizable().frame(width: 60, height: 60).foregroundColor(.red)
-                    }
+                    }.padding(.horizontal, 25)
                     
                 }
                 
                 // NOTIFICATION
                 Text(userNotification)
-                    .frame(width: geometry.size.width, height: 20, alignment: .center)
+                    .frame(width: outerGeometry.size.width, height: 20, alignment: .center)
                     .padding()
                 
                 //Spacer()
@@ -152,7 +168,7 @@ struct ContentView: View {
                         with: .color(.white)
                     )
                 }
-                .frame(width: geometry.size.width, height: 200)
+                .frame(width: outerGeometry.size.width, height: 200)
 
                 HStack {
                     // CALIBRATE BUTTON
@@ -217,6 +233,10 @@ struct ContentView: View {
             }
             .onAppear {
                 configureAudioSession()
+                self.canvasWidth = outerGeometry.size.width
+            }
+            .onReceive(audioPlayerManager.$currentPlaytime) { time in
+                self.playhead = time
             }
             .onReceive(audioPlayerManager.$audioFinished) { finished in
                 if finished {
@@ -234,7 +254,7 @@ struct ContentView: View {
                     self.state = .STOP
                 }
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)  // Full-screen alignment
+            .frame(width: outerGeometry.size.width, height: outerGeometry.size.height)  // Full-screen alignment
         }.edgesIgnoringSafeArea(.horizontal)  // Ensure the view takes up the entire screen area
     }
     
@@ -289,6 +309,7 @@ struct ContentView: View {
             audioRecorder = try AVAudioRecorder(url: audioFilename, settings: recordingSettings)
             audioRecorder?.record()
             if self.trackExists {
+                self.previousPlayhead = self.playhead
                 self.audioPlayerManager.playAudio()
             }
             // May need to deduce the delay between new recording and playback
@@ -310,7 +331,7 @@ struct ContentView: View {
         
         self.state = .STOP
         if self.trackExists {
-            _ = audioPlayerManager.pauseAudio()
+            audioPlayerManager.pauseAudio()
             audioPlayerManager.setCurrentTime(time: self.playhead)
         } else {
             // this premiere recording was saved as base.m4a
@@ -324,45 +345,41 @@ struct ContentView: View {
         audioRecorder?.stop()
         audioRecorder = nil
         
-        
         self.userNotification = ""
-        let previousPlayhead: TimeInterval = self.playhead
         
         self.state = .STOP
         if self.trackExists {
-            self.playhead = audioPlayerManager.pauseAudio()
-            print("Set playhead to \(self.playhead)")
+            audioPlayerManager.pauseAudio()
+            self.playhead = 0.0
         } else {
             // this premiere recording was saved as base.m4a
+            self.duration = audioPlayerManager.prepareAudio(filename: "base.m4a")
+            self.envelope = audioPlayerManager.getEnvelope(bins: Int(self.canvasWidth))
+            self.playhead = 0.0
             self.trackExists = true
-            audioPlayerManager.prepareAudio(filename: "base.m4a")
-            shouldRedrawWaveform = false
-            shouldRedrawWaveform = true
+
             return
         }
-        
-        // TODO: DSP tasks
         
         // For now, just overlay dub.m4a over base.m4a, save to base.m4a
         let base = getDocumentsDirectory().appendingPathComponent("base.m4a")
         let dub = getDocumentsDirectory().appendingPathComponent("dub.m4a")
         
-        if let combinedBuffer = addAudioBuffers(baseUrl: base, dubUrl: dub, offset: previousPlayhead) {
+        if let combinedBuffer = addAudioBuffers(baseUrl: base, dubUrl: dub, atTime: previousPlayhead, doEchoCancellation: true) {
             writeAudioFile(buffer: combinedBuffer, url: base)
             print("Audio files combined successfully!")
             
             // prepare Audio, set currentTime
-            audioPlayerManager.prepareAudio(filename: "base.m4a")
+            self.duration = audioPlayerManager.prepareAudio(filename: "base.m4a")
+            self.envelope = audioPlayerManager.getEnvelope(bins: Int(self.canvasWidth))
             audioPlayerManager.setCurrentTime(time: self.playhead)
-
-            shouldRedrawWaveform = false
-            shouldRedrawWaveform = true
-             
+            
         } else {
             print("Error combining audio buffers.")
         }
     }
-
+    
+    
     func rewind() {
         print("rewind")
         
@@ -373,7 +390,7 @@ struct ContentView: View {
         }
         
         if self.state == .PLAY {
-            _ = self.audioPlayerManager.pauseAudio()
+            self.audioPlayerManager.pauseAudio()
         }
         
         self.audioPlayerManager.setCurrentTime(time: 0.0)
@@ -398,8 +415,8 @@ struct ContentView: View {
     }
     
     func pause() {
-        print("pause playback, update playhead")
-        self.playhead = audioPlayerManager.pauseAudio()
+        print("pause playback")
+        audioPlayerManager.pauseAudio()
         self.state = .STOP
     }
     
@@ -413,6 +430,7 @@ struct ContentView: View {
         
         self.state = .STOP
         self.playhead = 0.0
+        self.envelope = nil
         
         if self.trackExists {
             audioPlayerManager.stopAudio()

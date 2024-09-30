@@ -10,11 +10,13 @@ import Accelerate
 
 class AudioPlayerManager: NSObject, AVAudioPlayerDelegate, ObservableObject {
     var audioPlayer: AVAudioPlayer?
+    var timer: Timer?
+    @Published var currentPlaytime: TimeInterval = 0
     
     // Observable property to track if audio finished playing
     @Published var audioFinished = false
     
-    func prepareAudio(filename: String) {
+    func prepareAudio(filename: String) -> TimeInterval {
         let audioFilename = getDocumentsDirectory().appendingPathComponent(filename)
                 
         do {
@@ -25,20 +27,34 @@ class AudioPlayerManager: NSObject, AVAudioPlayerDelegate, ObservableObject {
         } catch {
             print("Failed to prepare audio: \(error.localizedDescription)")
         }
+        
+        return audioPlayer?.duration ?? 0.0
     }
     
     func playAudio() {
         audioPlayer?.play()
+        self.startTimer()
     }
     
-    func pauseAudio() -> TimeInterval {
+    func pauseAudio() {
         audioPlayer?.pause()
-        return audioPlayer?.currentTime ?? 0.0
+        self.stopTimer()
     }
    
     func stopAudio() {
         audioPlayer?.stop()
         audioPlayer = nil
+    }
+    
+    func startTimer() {
+        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            self?.currentPlaytime = self?.audioPlayer?.currentTime ?? 0.0
+        }
+    }
+
+    func stopTimer() {
+        timer?.invalidate()
+        timer = nil
     }
     
     func setCurrentTime(time: TimeInterval) {
@@ -49,9 +65,8 @@ class AudioPlayerManager: NSObject, AVAudioPlayerDelegate, ObservableObject {
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         if flag {
             print("Audio finished playing successfully.")
-            DispatchQueue.main.async {
-                self.audioFinished = true  // Notify the view of the event
-            }
+            stopTimer()
+            self.audioFinished = true  // Notify the view of the event
         } else {
             print("Audio finished playing, but there was an issue.")
         }
@@ -83,4 +98,5 @@ class AudioPlayerManager: NSObject, AVAudioPlayerDelegate, ObservableObject {
         
         return envelope
     }
+    
 }

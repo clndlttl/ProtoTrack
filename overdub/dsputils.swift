@@ -63,8 +63,7 @@ func removeFirstNFrames(from buffer: AVAudioPCMBuffer, numberOfFramesToRemove: A
            let destinationChannelData = newBuffer.floatChannelData?[channel] {
             // Copy from the N-th frame onward to the new buffer
             let sourcePointer = sourceChannelData.advanced(by: Int(numberOfFramesToRemove))
-            let destinationPointer = destinationChannelData
-            vDSP_mmov(sourcePointer, destinationPointer, vDSP_Length(remainingFrames), 1, vDSP_Length(remainingFrames), 1)
+            vDSP_mmov(sourcePointer, destinationChannelData, vDSP_Length(remainingFrames), 1, 1, 1)
         }
     }
     
@@ -97,12 +96,7 @@ func prependZerosToBuffer(buffer: AVAudioPCMBuffer, zeroFrames: AVAudioFrameCoun
     for channel in 0..<channelCount {
         if let originalChannelData = buffer.floatChannelData?[channel],
            let newChannelData = newBuffer.floatChannelData?[channel] {
-            
-            // Prepend zeroes using Accelerate
-            vDSP_vclr(newChannelData, 1, vDSP_Length(zeroFrames))
-            
-            // Copy the original buffer data into the new buffer after the zeros
-            cblas_scopy(Int32(Int(originalFrameCount)), originalChannelData, 1, newChannelData.advanced(by: Int(zeroFrames)), 1)
+            vDSP_mmov(originalChannelData, newChannelData.advanced(by: Int(zeroFrames)), vDSP_Length(originalFrameCount), 1, 1, 1)
         }
     }
     
@@ -136,12 +130,7 @@ func appendZerosToBuffer(buffer: AVAudioPCMBuffer, zeroFrames: AVAudioFrameCount
     for channel in 0..<channelCount {
         if let originalChannelData = buffer.floatChannelData?[channel],
            let newChannelData = newBuffer.floatChannelData?[channel] {
-            
-            // Copy the original buffer data into the new buffer first
-            cblas_scopy(Int32(Int(originalFrameCount)), originalChannelData, 1, newChannelData, 1)
-            
-            // Append zeroes using Accelerate
-            vDSP_vclr(newChannelData.advanced(by: Int(originalFrameCount)), 1, vDSP_Length(zeroFrames))
+            vDSP_mmov(originalChannelData, newChannelData, vDSP_Length(originalFrameCount), 1, 1, 1)
         }
     }
     
@@ -150,7 +139,7 @@ func appendZerosToBuffer(buffer: AVAudioPCMBuffer, zeroFrames: AVAudioFrameCount
 
 
 // Function to add two PCM buffers together using Accelerate
-func addAudioBuffers(baseUrl: URL, dubUrl: URL, offset: TimeInterval) -> AVAudioPCMBuffer? {
+func addAudioBuffers(baseUrl: URL, dubUrl: URL, atTime: TimeInterval, audioDelaySecs: TimeInterval = 0.1, doEchoCancellation: Bool = false) -> AVAudioPCMBuffer? {
     
     guard let base = readAudioFile(url: baseUrl), let dub = readAudioFile(url: dubUrl) else {
         print("Cannot read audio in addAudioBuffers()")
@@ -162,56 +151,72 @@ func addAudioBuffers(baseUrl: URL, dubUrl: URL, offset: TimeInterval) -> AVAudio
         return nil
     }
     
-    // First apply time correction, then prepend zeros to dub. Then, append zeros either to base or dub.
-    let frameCorrection: UInt32 = UInt32(round(format.sampleRate * 0.1)) // sampleRate * delay (about 0.1 sec)
+    // Since recording begins before playback, need to remove some frames from the dub
+    let frameCorrection: Int = Int(round(format.sampleRate * audioDelaySecs))
+    // expected frame offset
+    let frameOffset: Int = Int(round(format.sampleRate * atTime))
     
-    let numPrependToDub: UInt32 = UInt32(round(format.sampleRate * offset))
-    let adjustedDubFrameCount = numPrependToDub + dub.frameLength
+    let numPrependToDub: Int = frameOffset - frameCorrection
     
-    let numAppendToBase = adjustedDubFrameCount > base.frameLength ? adjustedDubFrameCount - base.frameLength : 0
-    let numAppendToDub = base.frameLength > adjustedDubFrameCount ? base.frameLength - adjustedDubFrameCount : 0
-    
-    guard let dubCorrected = removeFirstNFrames(from: dub, numberOfFramesToRemove: frameCorrection) else {
-        print("Cannot apply frame correction")
+    let prependedDubFrameCount = numPrependToDub + Int(dub.frameLength)
+
+    guard prependedDubFrameCount > 0 else {
+        print("Dub is too short!!!")
         return nil
     }
     
-    guard let dubPad = prependZerosToBuffer(buffer: dubCorrected, zeroFrames: numPrependToDub) else {
+    let baseLen: Int = Int(base.frameLength)
+    
+    let endEchoTime: TimeInterval = baseLen > prependedDubFrameCount ? Double(prependedDubFrameCount) / format.sampleRate : Double(baseLen) / format.sampleRate
+    
+    // the endTime (for echo cancellation) is the min
+
+    let numAppendToBase = prependedDubFrameCount > baseLen ? prependedDubFrameCount - baseLen : 0
+    let numAppendToDub = baseLen > prependedDubFrameCount ? baseLen - prependedDubFrameCount : 0
+    
+    guard let dubPrepended = numPrependToDub >= 0 ? prependZerosToBuffer(buffer: dub, zeroFrames: AVAudioFrameCount(numPrependToDub)) :
+            removeFirstNFrames(from: dub, numberOfFramesToRemove: AVAudioFrameCount(-numPrependToDub)) else {
         print("Cannot prepend to dub")
         return nil
     }
-    guard let dubPad2 = appendZerosToBuffer(buffer: dubPad, zeroFrames: numAppendToDub) else {
+            
+    guard let dubAppended = appendZerosToBuffer(buffer: dubPrepended, zeroFrames: AVAudioFrameCount(numAppendToDub)) else {
         print("Cannot append to dub")
         return nil
     }
-    guard let basePad = appendZerosToBuffer(buffer: base, zeroFrames: numAppendToBase) else {
+    guard let baseAppended = appendZerosToBuffer(buffer: base, zeroFrames: AVAudioFrameCount(numAppendToBase)) else {
         print("Cannot append to base")
         return nil
     }
     
-    let framesOut = max(basePad.frameLength, dubPad2.frameLength)
+    let framesOut = max(baseAppended.frameLength, dubAppended.frameLength)
     
     guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: framesOut) else {
         return nil
     }
 
     // Get pointers to the raw float32 data in each buffer
-    guard let buffer1Data = basePad.floatChannelData,
-          let buffer2Data = dubPad2.floatChannelData,
-          let outputData = outputBuffer.floatChannelData else {
+    guard let basePtr = baseAppended.floatChannelData,
+          let dubPtr = dubAppended.floatChannelData,
+          let outputPtr = outputBuffer.floatChannelData else {
         return nil
+    }
+    
+    // Here's the magic...
+    if doEchoCancellation {
+        cancelEcho(basePtr, dubPtr, atTime, endEchoTime) // Must process dubData in-place
     }
 
     // Add audio samples together for each channel
     for channel in 0..<Int(base.format.channelCount) {
-        vDSP_vadd(buffer1Data[channel], 1, buffer2Data[channel], 1, outputData[channel], 1, vDSP_Length(framesOut))
+        vDSP_vadd(basePtr[channel], 1, dubPtr[channel], 1, outputPtr[channel], 1, vDSP_Length(framesOut))
         
         // Normalize to avoid clipping (optional, depending on desired outcome)
         var maxAmplitude: Float = 0
-        vDSP_maxv(outputData[channel], 1, &maxAmplitude, vDSP_Length(framesOut))
+        vDSP_maxv(outputPtr[channel], 1, &maxAmplitude, vDSP_Length(framesOut))
         if maxAmplitude > 1.0 {
             var scale: Float = 1.0 / maxAmplitude
-            vDSP_vsmul(outputData[channel], 1, &scale, outputData[channel], 1, vDSP_Length(framesOut))
+            vDSP_vsmul(outputPtr[channel], 1, &scale, outputPtr[channel], 1, vDSP_Length(framesOut))
         }
     }
 
