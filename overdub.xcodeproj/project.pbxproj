@@ -17,8 +17,9 @@
 		11A4856C2C9A100700718A41 /* dsputils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A4856B2C9A100700718A41 /* dsputils.swift */; };
 		11A4856E2C9BD75600718A41 /* AudioPlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A4856D2C9BD75600718A41 /* AudioPlayerManager.swift */; };
 		11B7F7912C9FDCA500376798 /* Calibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B7F7902C9FDCA500376798 /* Calibration.swift */; };
-		11B7F7932CA0CC1900376798 /* wn-10-12k.wav in Resources */ = {isa = PBXBuildFile; fileRef = 11B7F7922CA0CC1900376798 /* wn-10-12k.wav */; };
 		11B7F7952CA5D74000376798 /* EchoCanceller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B7F7942CA5D74000376798 /* EchoCanceller.swift */; };
+		11B7F7992CAE1CEC00376798 /* wn-5-12000.wav in Resources */ = {isa = PBXBuildFile; fileRef = 11B7F7982CAE1CEC00376798 /* wn-5-12000.wav */; };
+		11B7F79B2CAEF4EE00376798 /* wn-5-44100.wav in Resources */ = {isa = PBXBuildFile; fileRef = 11B7F79A2CAEF4EE00376798 /* wn-5-44100.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,8 +53,9 @@
 		11A4856B2C9A100700718A41 /* dsputils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = dsputils.swift; sourceTree = "<group>"; };
 		11A4856D2C9BD75600718A41 /* AudioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerManager.swift; sourceTree = "<group>"; };
 		11B7F7902C9FDCA500376798 /* Calibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Calibration.swift; sourceTree = "<group>"; };
-		11B7F7922CA0CC1900376798 /* wn-10-12k.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "wn-10-12k.wav"; sourceTree = "<group>"; };
 		11B7F7942CA5D74000376798 /* EchoCanceller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EchoCanceller.swift; sourceTree = "<group>"; };
+		11B7F7982CAE1CEC00376798 /* wn-5-12000.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "wn-5-12000.wav"; sourceTree = "<group>"; };
+		11B7F79A2CAEF4EE00376798 /* wn-5-44100.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "wn-5-44100.wav"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -107,7 +109,8 @@
 				11A485412C9367B600718A41 /* overdubApp.swift */,
 				11A485432C9367B600718A41 /* ContentView.swift */,
 				11A485452C9367B700718A41 /* Assets.xcassets */,
-				11B7F7922CA0CC1900376798 /* wn-10-12k.wav */,
+				11B7F79A2CAEF4EE00376798 /* wn-5-44100.wav */,
+				11B7F7982CAE1CEC00376798 /* wn-5-12000.wav */,
 				11A485472C9367B700718A41 /* Preview Content */,
 				11A4856B2C9A100700718A41 /* dsputils.swift */,
 				11A4856D2C9BD75600718A41 /* AudioPlayerManager.swift */,
@@ -247,8 +250,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				11A485492C9367B700718A41 /* Preview Assets.xcassets in Resources */,
-				11B7F7932CA0CC1900376798 /* wn-10-12k.wav in Resources */,
+				11B7F7992CAE1CEC00376798 /* wn-5-12000.wav in Resources */,
 				11A485462C9367B700718A41 /* Assets.xcassets in Resources */,
+				11B7F79B2CAEF4EE00376798 /* wn-5-44100.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

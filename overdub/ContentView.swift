@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVFoundation
+import Accelerate
 
 enum AppState {
     case STOP
@@ -21,7 +22,7 @@ func getDocumentsDirectory() -> URL {
     return paths[0]
 }
 
-struct WaveformView: View {
+struct EnvelopeView: View {
     @Binding var envelope: [Float]?
 
     var body: some View {
@@ -40,6 +41,24 @@ struct WaveformView: View {
     }
 }
 
+struct LiveView: View {
+    @Binding var liveview: [Float]?
+
+    var body: some View {
+        Canvas { context, size in
+            print("Redrawing liveview!!!")
+            let midY = size.height / 2.0
+            if let env = self.liveview {
+                for (idx, point) in env.enumerated() {
+                    var linePath = Path()
+                    linePath.move(to: CGPoint(x: CGFloat(idx), y: midY*(1.0-CGFloat(point))))
+                    linePath.addLine(to: CGPoint(x: CGFloat(idx), y: midY))
+                    context.stroke(linePath, with: .color(.teal))
+                }
+            }
+        }
+    }
+}
 
 struct ContentView: View {
 
@@ -58,8 +77,12 @@ struct ContentView: View {
     @State private var showCalibrationAlert: Bool = false
     
     @State private var envelope: [Float]?
+    @State private var liveview: [Float]?
     
     @State private var canvasWidth: Double = 0.0
+    
+    @AppStorage("TFData") var TFData: Data?
+    @State private var TFComplex: DSPSplitComplex?
     
     var body: some View {
         GeometryReader { outerGeometry in
@@ -67,13 +90,13 @@ struct ContentView: View {
             {
                 ZStack {
                     Canvas { context, size in
-                        print("Redrawing rect")
+                        //print("Redrawing rect")
                         let rect = CGRect(origin: .zero, size: size)
                         context.fill(Path(rect), with: .color(.black))
                     }
                     
                     Canvas { context, size in
-                        print("Redrawing playhead")
+                        //print("Redrawing playhead")
                         // Draw playhead
                         if self.trackExists && self.duration > 0 {
                             let percentage: Double = min(self.playhead / self.duration, 1.0)
@@ -84,27 +107,31 @@ struct ContentView: View {
                     }
                     
                     Canvas { context, size in
-                        print("Redrawing axis")
+                        //print("Redrawing axis")
                         var linePath = Path()
                         linePath.move(to: CGPoint(x: 0, y: size.height/2))
                         linePath.addLine(to: CGPoint(x: size.width, y: size.height/2))
                         context.stroke(linePath, with: .color(.gray))
                     }
                         
-                    WaveformView(envelope: self.$envelope)
+                    EnvelopeView(envelope: self.$envelope)
                 }
                 .gesture(
                     DragGesture(minimumDistance: 0)
                     .onEnded { value in
-                        let translation = value.translation
+                        
+                        if self.state == .STOP {
+                            let translation = value.translation
                                     
-                        // Detect a swipe based on horizontal translation
-                        if translation.width < -50 {
-                            self.playhead = 0.0
-                        } else {
-                            self.playhead = (value.location.x / outerGeometry.size.width) * self.duration
+                            // Detect a swipe based on horizontal translation
+                            if translation.width < -50 {
+                                self.playhead = 0.0
+                            } else {
+                                self.playhead = (value.location.x / outerGeometry.size.width) * self.duration
+                            }
+                            audioPlayerManager.setCurrentTime(time: self.playhead)
                         }
-                        audioPlayerManager.setCurrentTime(time: self.playhead)
+                        
                     }
                 )
                 .frame(width: outerGeometry.size.width, height: 200)
@@ -115,6 +142,7 @@ struct ContentView: View {
                 
                 HStack {
                     
+                    Spacer()
                     // PLAY / PAUSE BUTTON
                     Button {
                         switch self.state {
@@ -132,8 +160,9 @@ struct ContentView: View {
                             .resizable()
                             .frame(width:60,height: 60)
                             .foregroundColor(Color.green)
-                    }.padding(.horizontal, 25)
-                    
+                    }//.padding(.horizontal, 30)
+                    Spacer()
+
                     // RECORD BUTTON
                     Button {
                         switch self.state {
@@ -148,8 +177,8 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: self.state == .RECORD ? "stop" : "record.circle").resizable().frame(width: 60, height: 60).foregroundColor(.red)
-                    }.padding(.horizontal, 25)
-                    
+                    }//.padding(.horizontal, 30)
+                    Spacer()
                 }
                 
                 // NOTIFICATION
@@ -157,16 +186,22 @@ struct ContentView: View {
                     .frame(width: outerGeometry.size.width, height: 20, alignment: .center)
                     .padding()
                 
-                //Spacer()
-                
-                Canvas { context, size in
+                ZStack {
+                    Canvas { context, size in
+                        print("Redrawing rect2")
+                        let rect = CGRect(origin: .zero, size: size)
+                        context.fill(Path(rect), with: .color(.black))
+                    }
                     
-                    let rect = CGRect(origin: .zero, size: size)
-                    
-                    context.fill(
-                        Path(rect),
-                        with: .color(.white)
-                    )
+                    Canvas { context, size in
+                        print("Redrawing axis2")
+                        var linePath = Path()
+                        linePath.move(to: CGPoint(x: 0, y: size.height/2))
+                        linePath.addLine(to: CGPoint(x: size.width, y: size.height/2))
+                        context.stroke(linePath, with: .color(.gray))
+                    }
+                        
+                    LiveView(liveview: self.$liveview)
                 }
                 .frame(width: outerGeometry.size.width, height: 200)
 
@@ -191,7 +226,7 @@ struct ContentView: View {
                             primaryButton: .default(Text("Begin"), action: {
                                 // OK action
                                 print("OK pressed")
-                                calibrate()
+                                requestMicrophoneAccessAndStartCalibrating()
                             }),
                             secondaryButton: .cancel(Text("Cancel"), action: {
                                 // Cancel action
@@ -234,6 +269,10 @@ struct ContentView: View {
             .onAppear {
                 configureAudioSession()
                 self.canvasWidth = outerGeometry.size.width
+                if let tf = self.TFData {
+                    print("Deserialize TFData")
+                    self.TFComplex = deserializeDSPSplitComplex(tf, count: 1024)
+                }
             }
             .onReceive(audioPlayerManager.$currentPlaytime) { time in
                 self.playhead = time
@@ -251,7 +290,7 @@ struct ContentView: View {
             .onReceive(calibrator.$calibrationFinished) { finished in
                 if finished {
                     print("onReceive: Calibration complete")
-                    self.state = .STOP
+                    stopCalibrating()
                 }
             }
             .frame(width: outerGeometry.size.width, height: outerGeometry.size.height)  // Full-screen alignment
@@ -271,10 +310,79 @@ struct ContentView: View {
         }
     }
     
-    func calibrate() {
-        print("calibrate")
-        self.state = .CALIBRATE
-        calibrator.playWavFile()
+    // Request microphone access with completion handler
+    func requestMicrophoneAccessAndStartCalibrating() {
+        AVAudioApplication.requestRecordPermission { granted in
+            DispatchQueue.main.async {
+                if granted {
+                    print("Microphone access granted.")
+                    startCalibrating()
+                } else {
+                    print("Microphone access denied.")
+                    self.state = .STOP  // Ensure we don't change to "Stop Recording"
+                }
+            }
+        }
+    }
+    
+    func startCalibrating() {
+        print("start calibrating")
+        
+        let recordingSettings = [
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVSampleRateKey: 44100,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+        ]
+        
+        let audioFilename = getDocumentsDirectory().appendingPathComponent("cal.m4a")
+        
+        do {
+            audioRecorder = try AVAudioRecorder(url: audioFilename, settings: recordingSettings)
+            audioRecorder?.prepareToRecord()
+            
+            if let t = audioRecorder?.deviceCurrentTime {
+                let t1: TimeInterval = t + 0.5
+                audioRecorder?.record(atTime: t1)
+                self.calibrator.playWavFile(atTime: t1)
+            }
+            
+            self.userNotification = "Calibrating..."
+            print("Calibrating...")
+            self.state = .CALIBRATE
+        } catch {
+            print("Failed to start recording: \(error.localizedDescription)")
+            self.state = .STOP  // Handle error and reset the state
+        }
+    }
+    
+    
+    
+    func stopCalibrating() {
+        print("stop calibrating")
+        audioRecorder?.stop()
+        audioRecorder = nil
+        
+        self.state = .STOP
+        
+        self.TFComplex = calibrator.getTransferFunc("cal.m4a")
+        
+        if let cmplx = self.TFComplex {
+            // Save to AppStorage
+            self.TFData = serializeDSPSplitComplex(cmplx, count: 512)
+        }
+        
+        if let cmplx = self.TFComplex {
+            var impResp = [Float](repeating: 0.0, count: Int(self.canvasWidth))
+            withUnsafePointer(to: cmplx) { c in
+                getImpulseResponse(inp: c, outp: &impResp, nBinsIn: 512, nSampOut: Int(self.canvasWidth))
+            }
+            //print("\(impResp)")
+            self.liveview = impResp
+        }
+        
+        self.userNotification = "Calibration complete."
+        
     }
     
     // Request microphone access with completion handler
@@ -297,7 +405,7 @@ struct ContentView: View {
         
         let recordingSettings = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 12000,
+            AVSampleRateKey: 44100,
             AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
@@ -307,12 +415,21 @@ struct ContentView: View {
         
         do {
             audioRecorder = try AVAudioRecorder(url: audioFilename, settings: recordingSettings)
-            audioRecorder?.record()
+            audioRecorder?.prepareToRecord()
+            
             if self.trackExists {
                 self.previousPlayhead = self.playhead
-                self.audioPlayerManager.playAudio()
+                
+                if let t = audioRecorder?.deviceCurrentTime {
+                    let t1: TimeInterval = t + 0.5
+                    audioRecorder?.record(atTime: t1)
+                    audioPlayerManager.playAudio(atTime: t1)
+                }
+                
+            } else {
+                audioRecorder?.record()
             }
-            // May need to deduce the delay between new recording and playback
+
             self.userNotification = "Recording..."
             print("Recording...")
             self.state = .RECORD
@@ -365,7 +482,8 @@ struct ContentView: View {
         let base = getDocumentsDirectory().appendingPathComponent("base.m4a")
         let dub = getDocumentsDirectory().appendingPathComponent("dub.m4a")
         
-        if let combinedBuffer = addAudioBuffers(baseUrl: base, dubUrl: dub, atTime: previousPlayhead, doEchoCancellation: true) {
+        if let combinedBuffer = addAudioBuffers(baseUrl: base, dubUrl: dub, atTime: previousPlayhead, 
+                                                transferFunction: self.TFComplex, doEchoCancellation: false, debug: false) {
             writeAudioFile(buffer: combinedBuffer, url: base)
             print("Audio files combined successfully!")
             
@@ -379,28 +497,6 @@ struct ContentView: View {
         }
     }
     
-    
-    func rewind() {
-        print("rewind")
-        
-        if !self.trackExists {
-            self.userNotification = "Please record a base track."
-            print("Track does not exist")
-            return
-        }
-        
-        if self.state == .PLAY {
-            self.audioPlayerManager.pauseAudio()
-        }
-        
-        self.audioPlayerManager.setCurrentTime(time: 0.0)
-        self.playhead = 0.0
-
-        if self.state == .PLAY {
-            self.audioPlayerManager.playAudio()
-        }
-    }
-    
     func play() {
         print("start playback")
         
@@ -410,7 +506,7 @@ struct ContentView: View {
             return
         }
         
-        self.audioPlayerManager.playAudio()
+        self.audioPlayerManager.playAudioNow()
         self.state = .PLAY
     }
     

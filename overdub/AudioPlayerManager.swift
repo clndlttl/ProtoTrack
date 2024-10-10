@@ -31,8 +31,13 @@ class AudioPlayerManager: NSObject, AVAudioPlayerDelegate, ObservableObject {
         return audioPlayer?.duration ?? 0.0
     }
     
-    func playAudio() {
+    func playAudioNow() {
         audioPlayer?.play()
+        self.startTimer()
+    }
+    
+    func playAudio(atTime: TimeInterval) {
+        audioPlayer?.play(atTime: atTime)
         self.startTimer()
     }
     
