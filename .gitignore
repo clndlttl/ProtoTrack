@@ -1,4 +1,16 @@
 .DS_Store
-overdub.xcodeproj/xcuserdata/
-overdub.xcodeproj/project.xcworkspace/xcuserdata/
 
+# Xcode
+DerivedData/
+build/
+*.xcworkspace
+*.xcodeproj/xcuserdata/
+xcuserdata/
+*.xcscmblueprint
+.idea/
+*.xcuserstate
+
+# Swift Package Manager
+Packages/
+Package.pins
+Package.resolved

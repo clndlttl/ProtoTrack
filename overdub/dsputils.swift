@@ -9,45 +9,7 @@ import AVFoundation
 import Accelerate
 
 
-// Function to read an audio file and return its PCM buffer
-func readAudioFile(url: URL) -> AVAudioPCMBuffer? {
-    let audioFile: AVAudioFile
-    
-    do {
-        audioFile = try AVAudioFile(forReading: url)
-    } catch {
-        print("Error opening audio file: \(error)")
-        return nil
-    }
 
-    let format = audioFile.processingFormat
-    let frameCount = UInt32(audioFile.length)
-    
-    guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
-        print("Error creating PCM buffer.")
-        return nil
-    }
-
-    do {
-        try audioFile.read(into: buffer)
-    } catch {
-        print("Error reading audio file: \(error)")
-        return nil
-    }
-    
-    return buffer
-}
-
-// Function to write a PCM buffer to an .m4a file
-func writeAudioFile(buffer: AVAudioPCMBuffer, url: URL) {
-    let format = buffer.format
-    do {
-        let audioFile = try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false)
-        try audioFile.write(from: buffer)
-    } catch {
-        print("Error writing audio file: \(error)")
-    }
-}
 
 func removeFirstNFrames(from buffer: AVAudioPCMBuffer, numberOfFramesToRemove: AVAudioFrameCount) -> AVAudioPCMBuffer? {
     guard numberOfFramesToRemove < buffer.frameLength else {
@@ -509,4 +471,89 @@ func getImpulseResponse(inp: UnsafePointer<DSPSplitComplex>, outp: UnsafeMutable
     ifft.realp.deallocate()
     ifft.imagp.deallocate()
 
+}
+
+// Function to add two PCM buffers together using Accelerate
+func addAudioBuffers(baseUrl: URL, dubUrl: URL, atTime: TimeInterval) -> AVAudioPCMBuffer? {
+    
+    guard let base = readAudioFile(url: baseUrl),
+          let dub = readAudioFile(url: dubUrl) else {
+        print("Cannot read audio in addAudioBuffers()")
+        return nil
+    }
+        
+    // infer format from buffer1
+    guard let format = AVAudioFormat(commonFormat: base.format.commonFormat, sampleRate: base.format.sampleRate, channels: base.format.channelCount, interleaved: false) else {
+        return nil
+    }
+    
+    // num to cutoff from the begininning of the dub
+    let correction: Int = Int(round(format.sampleRate * 0.05))
+    
+    // expected frame offset
+    let numPrependToDub: Int = Int(round(format.sampleRate * atTime)) - correction
+    print("atTime: \(atTime), prepending \(numPrependToDub) zeros")
+        
+    let prependedDubFrameCount = numPrependToDub + Int(dub.frameLength)
+        
+    guard prependedDubFrameCount > 0 else {
+        print("Dub is too short!!!")
+        return nil
+    }
+        
+    let baseLen: Int = Int(base.frameLength)
+        
+    //let endEchoTime: TimeInterval = baseLen > prependedDubFrameCount ? Double(prependedDubFrameCount) / format.sampleRate : Double(baseLen) / format.sampleRate
+        
+    // the endTime (for echo cancellation) is the min
+        
+    let numAppendToBase = prependedDubFrameCount > baseLen ? prependedDubFrameCount - baseLen : 0
+    let numAppendToDub = baseLen > prependedDubFrameCount ? baseLen - prependedDubFrameCount : 0
+        
+    guard let dubPrepended = numPrependToDub >= 0 ? prependZerosToBuffer(buffer: dub, zeroFrames: AVAudioFrameCount(numPrependToDub)) :
+        removeFirstNFrames(from: dub, numberOfFramesToRemove: AVAudioFrameCount(-numPrependToDub)) else {
+        print("Cannot prepend to dub")
+        return nil
+    }
+        
+    guard let dubAligned = appendZerosToBuffer(buffer: dubPrepended, zeroFrames: AVAudioFrameCount(numAppendToDub)) else {
+        print("Cannot append to dub")
+        return nil
+    }
+    guard let baseAligned = appendZerosToBuffer(buffer: base, zeroFrames: AVAudioFrameCount(numAppendToBase)) else {
+        print("Cannot append to base")
+        return nil
+    }
+        
+    let framesOut = max(baseAligned.frameLength, dubAligned.frameLength)
+        
+    guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: framesOut) else {
+        return nil
+    }
+        
+    // Here's the magic...
+    //cancelEcho(driver: baseAligned, mic: dubAligned, transferFunction: transferFunction, startTime: atTime, endTime: endEchoTime) // Must process dub in-place
+        
+    // Get pointers to the raw float32 data in each buffer
+    guard let driverPtr = baseAligned.floatChannelData?[0],
+          let micPtr = dubAligned.floatChannelData?[0],
+          let outPtr = outputBuffer.floatChannelData?[0]
+        else {
+        return nil
+    }
+    
+    // Add audio samples together
+    vDSP_vadd(driverPtr, 1, micPtr, 1, outPtr, 1, vDSP_Length(framesOut))
+        
+    // Normalize to avoid clipping (optional, depending on desired outcome)
+    var maxAmplitude: Float = 0
+    vDSP_maxv(outPtr, 1, &maxAmplitude, vDSP_Length(framesOut))
+    if maxAmplitude > 1.0 {
+        print("Avoiding clipping!")
+        var scale: Float = 1.0 / maxAmplitude
+        vDSP_vsmul(outPtr, 1, &scale, outPtr, 1, vDSP_Length(framesOut))
+    }
+        
+    outputBuffer.frameLength = framesOut
+    return outputBuffer
 }

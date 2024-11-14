@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		119719232CB8439000153498 /* AudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119719222CB8439000153498 /* AudioEngine.swift */; };
+		119719252CB8804A00153498 /* FileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119719242CB8804A00153498 /* FileManager.swift */; };
+		119719272CCD536900153498 /* CircularBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119719262CCD536900153498 /* CircularBuffer.swift */; };
 		11A485422C9367B600718A41 /* overdubApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A485412C9367B600718A41 /* overdubApp.swift */; };
 		11A485442C9367B600718A41 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A485432C9367B600718A41 /* ContentView.swift */; };
 		11A485462C9367B700718A41 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 11A485452C9367B700718A41 /* Assets.xcassets */; };
@@ -16,8 +19,6 @@
 		11A4855F2C9367B700718A41 /* overdubUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A4855E2C9367B700718A41 /* overdubUITestsLaunchTests.swift */; };
 		11A4856C2C9A100700718A41 /* dsputils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A4856B2C9A100700718A41 /* dsputils.swift */; };
 		11A4856E2C9BD75600718A41 /* AudioPlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A4856D2C9BD75600718A41 /* AudioPlayerManager.swift */; };
-		11B7F7912C9FDCA500376798 /* Calibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B7F7902C9FDCA500376798 /* Calibration.swift */; };
-		11B7F7952CA5D74000376798 /* EchoCanceller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B7F7942CA5D74000376798 /* EchoCanceller.swift */; };
 		11B7F7992CAE1CEC00376798 /* wn-5-12000.wav in Resources */ = {isa = PBXBuildFile; fileRef = 11B7F7982CAE1CEC00376798 /* wn-5-12000.wav */; };
 		11B7F79B2CAEF4EE00376798 /* wn-5-44100.wav in Resources */ = {isa = PBXBuildFile; fileRef = 11B7F79A2CAEF4EE00376798 /* wn-5-44100.wav */; };
 /* End PBXBuildFile section */
@@ -40,6 +41,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		119719222CB8439000153498 /* AudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngine.swift; sourceTree = "<group>"; };
+		119719242CB8804A00153498 /* FileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileManager.swift; sourceTree = "<group>"; };
+		119719262CCD536900153498 /* CircularBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircularBuffer.swift; sourceTree = "<group>"; };
 		11A4853E2C9367B600718A41 /* overdub.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = overdub.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		11A485412C9367B600718A41 /* overdubApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = overdubApp.swift; sourceTree = "<group>"; };
 		11A485432C9367B600718A41 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -52,8 +56,6 @@
 		11A4855E2C9367B700718A41 /* overdubUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = overdubUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		11A4856B2C9A100700718A41 /* dsputils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = dsputils.swift; sourceTree = "<group>"; };
 		11A4856D2C9BD75600718A41 /* AudioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerManager.swift; sourceTree = "<group>"; };
-		11B7F7902C9FDCA500376798 /* Calibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Calibration.swift; sourceTree = "<group>"; };
-		11B7F7942CA5D74000376798 /* EchoCanceller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EchoCanceller.swift; sourceTree = "<group>"; };
 		11B7F7982CAE1CEC00376798 /* wn-5-12000.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "wn-5-12000.wav"; sourceTree = "<group>"; };
 		11B7F79A2CAEF4EE00376798 /* wn-5-44100.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "wn-5-44100.wav"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -114,8 +116,9 @@
 				11A485472C9367B700718A41 /* Preview Content */,
 				11A4856B2C9A100700718A41 /* dsputils.swift */,
 				11A4856D2C9BD75600718A41 /* AudioPlayerManager.swift */,
-				11B7F7902C9FDCA500376798 /* Calibration.swift */,
-				11B7F7942CA5D74000376798 /* EchoCanceller.swift */,
+				119719222CB8439000153498 /* AudioEngine.swift */,
+				119719242CB8804A00153498 /* FileManager.swift */,
+				119719262CCD536900153498 /* CircularBuffer.swift */,
 			);
 			path = overdub;
 			sourceTree = "<group>";
@@ -224,7 +227,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 11A485392C9367B600718A41 /* Build configuration list for PBXProject "overdub" */;
+			buildConfigurationList = 11A485392C9367B600718A41 /* Build configuration list for PBXProject "ProtoTrack" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -277,12 +280,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				119719272CCD536900153498 /* CircularBuffer.swift in Sources */,
 				11A485442C9367B600718A41 /* ContentView.swift in Sources */,
 				11A4856E2C9BD75600718A41 /* AudioPlayerManager.swift in Sources */,
-				11B7F7912C9FDCA500376798 /* Calibration.swift in Sources */,
+				119719232CB8439000153498 /* AudioEngine.swift in Sources */,
 				11A4856C2C9A100700718A41 /* dsputils.swift in Sources */,
-				11B7F7952CA5D74000376798 /* EchoCanceller.swift in Sources */,
 				11A485422C9367B600718A41 /* overdubApp.swift in Sources */,
+				119719252CB8804A00153498 /* FileManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -449,12 +453,14 @@
 				DEVELOPMENT_TEAM = 8J3QM38WJX;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ProtoTrack;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need to access your microphone";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -481,12 +487,14 @@
 				DEVELOPMENT_TEAM = 8J3QM38WJX;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ProtoTrack;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need to access your microphone";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -577,7 +585,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		11A485392C9367B600718A41 /* Build configuration list for PBXProject "overdub" */ = {
+		11A485392C9367B600718A41 /* Build configuration list for PBXProject "ProtoTrack" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				11A485602C9367B700718A41 /* Debug */,

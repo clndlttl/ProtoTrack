@@ -77,9 +77,9 @@ class AudioPlayerManager: NSObject, AVAudioPlayerDelegate, ObservableObject {
         }
     }
     
-    func getEnvelope(bins: Int) -> [Float]? {
+    func getEnvelope(name: String, bins: Int) -> [Float]? {
         
-        let base = getDocumentsDirectory().appendingPathComponent("base.m4a")
+        let base = getDocumentsDirectory().appendingPathComponent(name)
         guard let buffer = readAudioFile(url: base) else {
             print("No envelope to get.")
             return nil
