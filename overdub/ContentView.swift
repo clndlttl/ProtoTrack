@@ -15,27 +15,32 @@ enum AppState {
     case RECORD
 }
 
-
 struct OptionsView: View {
     
-    @Binding var sampleRate: Int
+    @Environment(\.dismiss) private var dismiss
     
-    let sampleRates = [12000, 44100]
+    @Binding var useMainSpeaker: Bool
     
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Sample Rate", selection: $sampleRate) {
-                        ForEach(sampleRates, id: \.self) { option in
-                            Text("\(option) Hz")
-                        }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Use main speaker", isOn: $useMainSpeaker)
+                        Text("The main speaker output will appear on the microphone. Use earbuds for best recording quality.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
-                    .pickerStyle(.menu) // Dropdown style
                 }
-               
             }
             .navigationTitle("Options")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
@@ -83,6 +88,11 @@ struct LiveView: View {
 }
 
 struct ContentView: View {
+    
+    @StateObject private var audioPlayerManager = AudioPlayerManager()
+    @StateObject private var circularBuffer = CircularBuffer()
+    @StateObject private var audioEngine = AudioEngine()
+    @StateObject private var bluetoothMgr = BluetoothManager()
 
     @State private var state: AppState = .STOP
     @State private var trackExists: Bool = false
@@ -94,20 +104,19 @@ struct ContentView: View {
     @State private var playheadX: Double = 0.0
     @State private var duration: TimeInterval = 0.0
    
-    @StateObject private var audioEngine = AudioEngine()
     
     @State private var audioRecorder: AVAudioRecorder?
-    @StateObject private var audioPlayerManager = AudioPlayerManager()
 
     private let MSG_PROMPT: String = "Please record a base track."
     @State private var userNotification: String = ""
     
     @State private var isOptionsPresented: Bool = false
     @State private var isSharePresented: Bool = false
+    @State private var isUploadPresented: Bool = false
+    @State private var fileUploaded: String = ""
     
     @State private var envelope: [Float]?
     
-    @StateObject private var circularBuffer = CircularBuffer()
     @State private var noisefloor: Float?
     @State private var liveview: [Float]?
     
@@ -115,7 +124,7 @@ struct ContentView: View {
     
     @State private var animateButtons: Bool = false
     
-    @State private var sampleRate: Int = 44100
+    @State private var useMainSpeaker: Bool = false
     
     @State private var keyboardHeight: CGFloat = 0
     private var keyboardWillShow = NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
@@ -127,31 +136,53 @@ struct ContentView: View {
         GeometryReader { outerGeometry in
             VStack(spacing: 0)
             {
-                TextField("Track name", text: $trackName)
-                .onSubmit {
+                HStack(alignment: .center) {
+                    TextField("Track name", text: self.$trackName)
+                        .onSubmit {
+                            trackName = getSafeTrackName(trackName)
+                            if let ltn = self.lastTrackName {
+                                let track = getDocumentsDirectory().appendingPathComponent(ltn)
+                                renameFile(at: track, to: trackName)
+                                self.lastTrackName = trackName
+                            }
+                        }
+                        .padding() // for the text
+                        .background(Color(UIColor.systemGray6))  // Set background color (light gray)
+                        .cornerRadius(8)  // Round the corners
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.blue, lineWidth: 2)  // Add a blue border
+                        )
+                        .padding(.trailing)
                     
-                    trackName = getSafeTrackName(trackName)
-                    
-                    if let prev = lastTrackName {
-                        if trackName != prev {
-                            // Need to change the name of the file
-                            let trackURL = getDocumentsDirectory().appendingPathComponent(prev)
-                            renameFile(at: trackURL, to: trackName)
-                            lastTrackName = trackName
+                    Button {
+                        isUploadPresented.toggle()
+                    } label:
+                    {
+                        Image(systemName: "plus")
+                            .resizable()
+                            .frame(width:30,height: 30)
+                            .foregroundColor(Color.gray)
+                    }
+                    .sheet(isPresented: $isUploadPresented, content: {
+                        DocumentPickerView(fileUploaded: self.$fileUploaded)
+                    })
+                    .onChange(of: self.fileUploaded) { oldFile, newFile in
+                        // Load into AudioPlayer, etc
+                        print("onChange of \(newFile)")
+                        self.duration = self.audioPlayerManager.prepareAudio(filename: newFile)
+                        if self.duration > 0 {
+                            self.trackName = newFile
+                            self.lastTrackName = newFile
+                            self.envelope = audioPlayerManager.getEnvelope(name: newFile, bins: Int(self.canvasWidth))
+                            self.playhead = 0.0
+                            self.trackExists = true
+                            redrawPlayhead()
                         }
                     }
-                    
-                    // temp!
-                    print("trackName = \(self.trackName)")
+
                 }
-                .padding() // for the text
-                .background(Color(UIColor.systemGray6))  // Set background color (light gray)
-                .cornerRadius(8)  // Round the corners
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.blue, lineWidth: 2)  // Add a blue border
-                )
-                .padding()  // Add padding around the entire field
+                .padding()
                 
                 ZStack(alignment: .leading) {
                     Canvas { context, size in
@@ -210,7 +241,8 @@ struct ContentView: View {
                             .frame(width: outerGeometry.size.width, height: 20, alignment: .center)
                             .padding()
                             .foregroundStyle(.yellow)
-                        
+                            .shadow(color: .black, radius: 7, x: -10, y: 10)
+
                         HStack {
                             
                             Spacer()
@@ -230,6 +262,7 @@ struct ContentView: View {
                                     .frame(width:60,height: 60)
                                     .foregroundColor(Color.green)
                             }
+                            .shadow(color: .black, radius: 7, x: -10, y: 10)
                             
                             Spacer()
                             
@@ -252,6 +285,7 @@ struct ContentView: View {
                             } label: {
                                 Image(systemName: self.state == .RECORD ? "stop" : "record.circle").resizable().frame(width: 60, height: 60).foregroundColor(.red)
                             }
+                            .shadow(color: .black, radius: 7, x: -10, y: 10)
                             .scaleEffect(animateButtons ? 1.2 : 1.0)
                             
                             Spacer()
@@ -302,7 +336,11 @@ struct ContentView: View {
                     }
                     .padding()
                     .sheet(isPresented: self.$isOptionsPresented, content: {
-                        OptionsView(sampleRate: self.$sampleRate)
+                        OptionsView(useMainSpeaker: self.$useMainSpeaker)
+                            .onChange(of: self.useMainSpeaker) { oldVal, newVal in
+                                print("call configureAudioSession")
+                                configureAudioSession()
+                            }
                     })
                     
                     // SAVE BUTTON
@@ -321,9 +359,7 @@ struct ContentView: View {
                         Image(systemName: "square.and.arrow.up").resizable().frame(width: 38, height: 50).foregroundColor(Color.gray)
                     }
                     .padding(.horizontal,50)
-                    .sheet(isPresented: $isSharePresented, onDismiss: {
-                            print("Dismiss")
-                        }, content: {
+                    .sheet(isPresented: $isSharePresented, content: {
                             let track = getDocumentsDirectory().appendingPathComponent(self.trackName)
                             ActivityViewController(activityItems: [track])
                         })
@@ -351,7 +387,7 @@ struct ContentView: View {
                 
             }
             .onAppear {
-                configureAudioSession()
+                //configureAudioSession()
                 self.canvasWidth = outerGeometry.size.width
                 self.circularBuffer.setSize(width: Int(self.canvasWidth))
                 self.userNotification = MSG_PROMPT
@@ -369,6 +405,14 @@ struct ContentView: View {
                 //} else if newPhase == .inactive {
                 //    print("App is inactive")
                 //}
+            }
+            .onReceive(bluetoothMgr.$isBluetoothConnected) { val in
+                if val {
+                    print("Yes, BT connected")
+                }
+                else {
+                    print("BT is not connected")
+                }
             }
             .onReceive(audioPlayerManager.$currentPlaytime) { time in
                 self.playhead = time
@@ -421,20 +465,31 @@ struct ContentView: View {
             }
         }
     }
-    
+
+
     // Configure the audio session
     func configureAudioSession() {
         print("configureAudioSession()")
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playAndRecord, mode: .default)
-            // Override the output to route to the speaker (as opposed to earpiece)
-            try audioSession.overrideOutputAudioPort(.speaker)
+            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.allowBluetooth, .allowBluetoothA2DP])
+            // Check if a Bluetooth audio device is available. If not, vverride the output to route to the speaker (as opposed to earpiece)
+            
+            if self.useMainSpeaker {
+                print("override .speaker")
+                try audioSession.overrideOutputAudioPort(.speaker)
+            } else {
+                print("don't override .speaker")
+                try audioSession.overrideOutputAudioPort(.none)
+
+            }
             try audioSession.setActive(true)
+
         } catch {
             print("Failed to configure audio session: \(error.localizedDescription)")
         }
     }
+
     
     // Request microphone access with completion handler
     func requestMicrophoneAccessAndStartRecording() {
@@ -538,7 +593,6 @@ struct ContentView: View {
             self.playhead = 0.0
             self.trackExists = true
             self.lastTrackName = self.trackName
-
             return
         }
         
@@ -595,7 +649,6 @@ struct ContentView: View {
         self.duration = 0.0
         self.envelope = nil
         self.trackExists = false
-        self.lastTrackName = nil
         self.userNotification = MSG_PROMPT
         
         // clear liveview

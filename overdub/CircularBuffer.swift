@@ -53,14 +53,16 @@ class CircularBuffer: ObservableObject {
         var localMin: Float = 0
         
         for i in 0..<deciLen {
-            let db = 10.0 * log10( sumOfSquares[i] )
-            localMin = min(localMin, db)
+            var db = 10.0 * log10( sumOfSquares[i] )
+            if db.isFinite {
+                localMin = min(localMin, db)
+            } else {
+                db = noiseFloorInDB
+            }
             circBuf![ (rwPointer + i) % buflen ] = db
         }
         
-        print("localMin \(localMin)")
         if localMin < -40 {
-            print("update noisefloor")
             noiseFloorInDB = noiseFloorInDB * 0.975 + localMin * 0.025
         }
         
