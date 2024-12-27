@@ -1,2 +1,2 @@
-# overdub
-An iOS app that allow rapid music prototyping
+# ProtoTrack
+An iOS app that allows rapid music prototyping.
